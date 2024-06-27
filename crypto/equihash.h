@@ -8,10 +8,10 @@
 #ifndef BITCOIN_EQUIHASH_H
 #define BITCOIN_EQUIHASH_H
 
-#include "crypto/sha256.h"
-#include "utilstrencodings.h"
+#include <crypto/sha256.h>
+#include <utilstrencodings.h>
 
-#include "sodium.h"
+#include <blake2.h>
 
 #include <cstring>
 #include <stdexcept>
@@ -24,7 +24,7 @@
 #include <boost/static_assert.hpp>
 #include <type_traits>
 
-typedef crypto_generichash_blake2b_state eh_HashState;
+typedef blake2b_state eh_HashState;
 typedef uint32_t eh_index;
 typedef uint8_t eh_trunc;
 
@@ -196,7 +196,7 @@ public:
     bool IsValidSolution(const eh_HashState& base_state, std::vector<unsigned char> soln);
 };
 
-#include "equihash.tcc"
+#include <crypto/equihash.tcc>
 
 static Equihash<96,3> Eh96_3;
 static Equihash<200,9> Eh200_9;
@@ -205,7 +205,6 @@ static Equihash<48,5> Eh48_5;
 static Equihash<144,5> Eh144_5;
 static Equihash<192,7> Eh192_7;
 static Equihash<125,4> Eh125_4;
-
 
 #define EhInitialiseState(n, k, base_state, personalizationString)  \
     if (n == 200 && k == 9) {				 \
@@ -306,5 +305,35 @@ inline bool EhOptimisedSolveUncancellable(unsigned int n, unsigned int k, const 
     } else {                                             \
         throw std::invalid_argument("Unsupported Equihash parameters"); \
     }
+
+static inline void store32(void *dst, uint32_t w)
+{
+#if defined(NATIVE_LITTLE_ENDIAN)
+    memcpy(dst, &w, sizeof(w));
+#else
+    uint8_t *p = (uint8_t *)dst;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w;
+#endif
+}
+
+static inline void store64(void *dst, uint64_t w)
+{
+#if defined(NATIVE_LITTLE_ENDIAN)
+    memcpy(dst, &w, sizeof(w));
+#else
+    uint8_t *p = (uint8_t *)dst;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w; w >>= 8;
+    *p++ = (uint8_t)w;
+#endif
+}
 
 #endif // BITCOIN_EQUIHASH_H

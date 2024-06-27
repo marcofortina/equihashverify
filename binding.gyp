@@ -44,7 +44,8 @@
                 "libraries": [
                     "-Wl,-rpath,./build/Release/",
                     "-lboost_system",
-                    "-lsodium"
+                    "-lsodium",
+                    "-lb2"
                 ]
             },
             'conditions': [

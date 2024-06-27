@@ -22,7 +22,7 @@
 #include <boost/array.hpp>
 #include <boost/optional.hpp>
 
-#include "crypto/common.h"
+#include <crypto/common.h>
 
 class CScript;
 

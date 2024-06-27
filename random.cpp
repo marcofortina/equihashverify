@@ -3,12 +3,12 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "random.h"
+#include <random.h>
 
-#include "support/cleanse.h"
-#include "serialize.h"        // for begin_ptr(vec)
-#include "util.h"             // for LogPrint()
-#include "utilstrencodings.h" // for GetTime()
+#include <support/cleanse.h>
+#include <serialize.h>        // for begin_ptr(vec)
+#include <util.h>             // for LogPrint()
+#include <utilstrencodings.h> // for GetTime()
 
 #include <limits>
 
@@ -16,7 +16,7 @@
 #include <sys/time.h>
 #endif
 
-#include "sodium.h"
+#include <sodium.h>
 
 static inline int64_t GetPerformanceCounter()
 {

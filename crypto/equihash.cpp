@@ -16,12 +16,12 @@
 // https://www.internetsociety.org/sites/default/files/blogs-media/equihash-asymmetric-proof-of-work-based-generalized-birthday-problem.pdf
 
 #if defined(HAVE_CONFIG_H)
-#include "config/bitcoin-config.h"
+#include <config/bitcoin-config.h>
 #endif
 
-#include "crypto/common.h"
-#include "crypto/equihash.h"
-#include "../util.h"
+#include <crypto/common.h>
+#include <crypto/equihash.h>
+#include <util.h>
 
 #include <algorithm>
 #include <iostream>
@@ -36,53 +36,35 @@ int Equihash<N,K>::InitialiseState(eh_HashState& base_state, const char* persona
 {
     uint32_t le_N = htole32(N);
     uint32_t le_K = htole32(K);
-    unsigned char personalization[crypto_generichash_blake2b_PERSONALBYTES] = {};
+    unsigned char personalization[BLAKE2B_PERSONALBYTES] = {};
     memcpy(personalization, personalizationString, 8);
     memcpy(personalization+8,  &le_N, 4);
     memcpy(personalization+12, &le_K, 4);
-    return crypto_generichash_blake2b_init_salt_personal(&base_state,
-                                                         NULL, 0, // No key.
-                                                         (512/N)*((N+7)/8),
-                                                         NULL,    // No salt.
-                                                         personalization);
+
+    blake2b_param param[1];
+    param->digest_length = (512/N)*N/8;
+    param->key_length    = 0;
+    param->fanout        = 1;
+    param->depth         = 1;
+    store32(&param->leaf_length, 0);
+    store64(&param->node_offset, 0);
+    param->node_depth    = 0;
+    param->inner_length  = 0;
+    memset(param->reserved, 0, sizeof(param->reserved));
+    memset(param->salt, 0, sizeof(param->salt));
+    memcpy(param->personal, personalization, BLAKE2B_PERSONALBYTES);
+
+    return blake2b_init_param(&base_state, param);
 }
 
 void GenerateHash(const eh_HashState& base_state, eh_index g,
-                  unsigned char* hash, size_t hLen, bool twist)
+                  unsigned char* hash, size_t hLen)
 {
-   if (!twist) {	
-	    eh_HashState state;
-	    state = base_state;
-	    eh_index lei = htole32(g);
-	    crypto_generichash_blake2b_update(&state, (const unsigned char*) &lei,
-		                              sizeof(eh_index));
-	    crypto_generichash_blake2b_final(&state, hash, hLen);
-    } else {
-	    uint32_t myHash[16] = {0};
-	    uint32_t startIndex = g & 0xFFFFFFF0;
-
-	    for (uint32_t g2 = startIndex; g2 <= g; g2++) {
-		    uint32_t tmpHash[16] = {0};
-
-		    eh_HashState state;	
-		    state = base_state;
-		    eh_index lei = htole32(g2);
-		    crypto_generichash_blake2b_update(&state, (const unsigned char*) &lei,
-				                      sizeof(eh_index));
-
-		    crypto_generichash_blake2b_final(&state, (unsigned char*)&tmpHash[0], hLen);
-
-		    for (uint32_t idx = 0; idx < 16; idx++) myHash[idx] += tmpHash[idx];
-	    }
-
-	    uint8_t * hashBytes = (uint8_t *) &myHash[0]; 
-
-	    for (uint32_t i=15; i<hLen; i+=16) hashBytes[i] &= 0xF8;	
-
-	    memcpy(hash, &myHash[0], hLen);	
-
-
-    }
+    eh_HashState state;
+    state = base_state;
+    eh_index lei = htole32(g);
+    blake2b_update(&state, (const unsigned char*) &lei, sizeof(eh_index));
+    blake2b_final(&state, hash, hLen);
 }
 
 
@@ -370,9 +352,7 @@ bool Equihash<N,K>::BasicSolve(const eh_HashState& base_state,
     std::vector<FullStepRow<FullWidth>> X;
     X.reserve(init_size);
 
-    bool twist = ((N == 125) && (K == 4));
-
-    GenerateHash(base_state, g, tmpHash, HashOutput, twist);
+    GenerateHash(base_state, g, tmpHash, HashOutput);
     for (eh_index g = 0; X.size() < init_size; g++) {
         GenerateHash(base_state, g, tmpHash, HashOutput);
         for (eh_index i = 0; i < IndicesPerHashOutput && X.size() < init_size; i++) {
@@ -540,8 +520,6 @@ bool Equihash<N,K>::OptimisedSolve(const eh_HashState& base_state,
 
     // First run the algorithm with truncated indices
 
-    bool twist = ((N == 125) && (K ==4));
-
     const eh_index soln_size { 1 << K };
     std::vector<std::shared_ptr<eh_trunc>> partialSolns;
     int invalidCount = 0;
@@ -555,7 +533,7 @@ bool Equihash<N,K>::OptimisedSolve(const eh_HashState& base_state,
         Xt.reserve(init_size);
         unsigned char tmpHash[HashOutput];
         for (eh_index g = 0; Xt.size() < init_size; g++) {
-            GenerateHash(base_state, g, tmpHash, HashOutput, twist);
+            GenerateHash(base_state, g, tmpHash, HashOutput);
             for (eh_index i = 0; i < IndicesPerHashOutput && Xt.size() < init_size; i++) {
                 Xt.emplace_back(tmpHash+(i*((N+7)/8)), ((N+7)/8), HashLength, CollisionBitLength,
                                 (g*IndicesPerHashOutput)+i, CollisionBitLength + 1);
@@ -684,7 +662,7 @@ bool Equihash<N,K>::OptimisedSolve(const eh_HashState& base_state,
                 eh_index newIndex { UntruncateIndex(partialSoln.get()[i], j, CollisionBitLength + 1) };
                 if (j == 0 || newIndex % IndicesPerHashOutput == 0) {
                     GenerateHash(base_state, newIndex/IndicesPerHashOutput,
-                                 tmpHash, HashOutput, twist);
+                                 tmpHash, HashOutput);
                 }
                 icv.emplace_back(tmpHash+((newIndex % IndicesPerHashOutput) * ((N+7)/8)),
                                  ((N+7)/8), HashLength, CollisionBitLength, newIndex);
@@ -764,13 +742,11 @@ bool Equihash<N,K>::IsValidSolution(const eh_HashState& base_state, std::vector<
         return false;
     }
 
-    bool twist = ((N == 125) && (K ==4));
-
     std::vector<FullStepRow<FinalFullWidth>> X;
     X.reserve(1 << K);
     unsigned char tmpHash[HashOutput];
     for (eh_index i : GetIndicesFromMinimal(soln, CollisionBitLength)) {
-        GenerateHash(base_state, i/IndicesPerHashOutput, tmpHash, HashOutput, twist);
+        GenerateHash(base_state, i/IndicesPerHashOutput, tmpHash, HashOutput);
         X.emplace_back(tmpHash+((i % IndicesPerHashOutput) * ((N+7)/8)),
                        ((N+7)/8), HashLength, CollisionBitLength, i);
     }

@@ -210,7 +210,7 @@ std::vector<eh_index> GetIndicesFromMinimal(std::vector<unsigned char> minimal,
     ExpandArray(minimal.data(), minimal.size(),
                 array.data(), lenIndices, cBitLen+1, bytePad);
     std::vector<eh_index> ret;
-    for (int i = 0; i < lenIndices; i += sizeof(eh_index)) {
+    for (size_t i = 0; i < lenIndices; i += sizeof(eh_index)) {
         ret.push_back(ArrayToEhIndex(array.data()+i));
     }
     return ret;
@@ -224,7 +224,7 @@ std::vector<unsigned char> GetMinimalFromIndices(std::vector<eh_index> indices,
     size_t minLen { (cBitLen+1)*lenIndices/(8*sizeof(eh_index)) };
     size_t bytePad { sizeof(eh_index) - ((cBitLen+1)+7)/8 };
     std::vector<unsigned char> array(lenIndices);
-    for (int i = 0; i < indices.size(); i++) {
+    for (size_t i = 0; i < indices.size(); i++) {
         EhIndexToArray(indices[i], array.data()+(i*sizeof(eh_index)));
     }
     std::vector<unsigned char> ret(minLen);
@@ -262,7 +262,7 @@ FullStepRow<WIDTH>::FullStepRow(const FullStepRow<W>& a, const FullStepRow<W>& b
 {
     assert(len+lenIndices <= W);
     assert(len-trim+(2*lenIndices) <= WIDTH);
-    for (int i = trim; i < len; i++)
+    for (size_t i = trim; i < len; i++)
         hash[i-trim] = a.hash[i] ^ b.hash[i];
     if (a.IndicesBefore(b, len, lenIndices)) {
         std::copy(a.hash+len, a.hash+len+lenIndices, hash+len-trim);
@@ -284,7 +284,7 @@ template<size_t WIDTH>
 bool StepRow<WIDTH>::IsZero(size_t len)
 {
     // This doesn't need to be constant time.
-    for (int i = 0; i < len; i++) {
+    for (size_t i = 0; i < len; i++) {
         if (hash[i] != 0)
             return false;
     }
@@ -779,7 +779,7 @@ bool Equihash<N,K>::IsValidSolution(const eh_HashState& base_state, std::vector<
     size_t lenIndices = sizeof(eh_index);
     while (X.size() > 1) {
         std::vector<FullStepRow<FinalFullWidth>> Xc;
-        for (int i = 0; i < X.size(); i += 2) {
+        for (size_t i = 0; i < X.size(); i += 2) {
             if (!HasCollision(X[i], X[i+1], CollisionByteLength)) {
                 //LogPrint("pow", "Invalid solution: invalid collision length between StepRows\n");
                 //LogPrint("pow", "X[i]   = %s\n", X[i].GetHex(hashLen));
